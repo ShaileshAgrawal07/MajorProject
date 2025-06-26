@@ -12,6 +12,7 @@ import android.widget.*
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.os.postDelayed
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
@@ -20,6 +21,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bluetoothLeScanner: BluetoothLeScanner
     private lateinit var listView: ListView
     private lateinit var stepsView: TextView
+    private lateinit var heartRateView: TextView
+
 
     private val deviceList = mutableListOf<BluetoothDevice>()
     private val handler = Handler(Looper.getMainLooper())
@@ -29,6 +32,9 @@ class MainActivity : AppCompatActivity() {
     private val STEP_SERVICE_UUID = UUID.fromString("0000feea-0000-1000-8000-00805f9b34fb")
     private val STEP_CHAR_UUID = UUID.fromString("0000fee1-0000-1000-8000-00805f9b34fb")
     private val UNLOCK_CHAR_UUID = UUID.fromString("0000fee2-0000-1000-8000-00805f9b34fb")
+    private val HEART_SERVICE_UUID = UUID.fromString("0000180D-0000-1000-8000-00805f9b34fb")
+    private val HEART_CHAR_UUID = UUID.fromString("00002A37-0000-1000-8000-00805f9b34fb")
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,6 +42,8 @@ class MainActivity : AppCompatActivity() {
 
         listView = findViewById(R.id.deviceList)
         stepsView = findViewById(R.id.stepsView)
+        heartRateView = findViewById(R.id.heartRateView)
+
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
         bluetoothAdapter = bluetoothManager.adapter
@@ -130,21 +138,51 @@ class MainActivity : AppCompatActivity() {
                     Log.e("BLE", "Step characteristic not found")
                 }
             }, 500)
+
+            handler.postDelayed({
+            val heartService = gatt.getService(HEART_SERVICE_UUID)
+            val heartChar = heartService?.getCharacteristic(HEART_CHAR_UUID)
+
+            if (heartChar != null) {
+                gatt.setCharacteristicNotification(heartChar, true)
+                val hrDescriptor = heartChar.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+                hrDescriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                gatt.writeDescriptor(hrDescriptor)
+                Log.d("BLE", "Heart rate notification enabled")
+            } else {
+                Log.e("BLE", "Heart rate characteristic not found")
+            }
+                                }, 500)
+
         }
 
         override fun onCharacteristicChanged(gatt: BluetoothGatt, characteristic: BluetoothGattCharacteristic) {
-            if (characteristic.uuid == STEP_CHAR_UUID) {
-                val data = characteristic.value
-                Log.d("BLE", "Step data received: ${data.joinToString(" ") { String.format("%02X", it) }}")
+            when (characteristic.uuid) {
+                STEP_CHAR_UUID -> {
+                    val data = characteristic.value
+                    val steps = if (data.size >= 2) {
+                        (data[1].toInt() and 0xFF shl 8) or (data[0].toInt() and 0xFF)
+                    } else 0
 
-                val steps = if (data.size >= 2) {
-                    (data[1].toInt() and 0xFF shl 8) or (data[0].toInt() and 0xFF)
-                } else 0
+                    runOnUiThread {
+                        stepsView.text = "Steps: $steps"
+                    }
+                }
 
-                runOnUiThread {
-                    stepsView.text = "Steps: $steps"
+                HEART_CHAR_UUID -> {
+                    val data = characteristic.value
+                    val heartRate = if ((data[0].toInt() and 0x01) == 0) {
+                        data[1].toInt() and 0xFF // UINT8 format
+                    } else {
+                        (data[2].toInt() and 0xFF shl 8) or (data[1].toInt() and 0xFF) // UINT16
+                    }
+
+                    runOnUiThread {
+                        heartRateView.text = "Heart Rate: $heartRate bpm"
+                    }
                 }
             }
         }
+
     }
-} 
+}
