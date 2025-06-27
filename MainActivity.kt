@@ -22,6 +22,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var listView: ListView
     private lateinit var stepsView: TextView
     private lateinit var heartRateView: TextView
+    private lateinit var distanceView: TextView
+    private lateinit var calorieView: TextView
+
 
 
     private val deviceList = mutableListOf<BluetoothDevice>()
@@ -43,6 +46,9 @@ class MainActivity : AppCompatActivity() {
         listView = findViewById(R.id.deviceList)
         stepsView = findViewById(R.id.stepsView)
         heartRateView = findViewById(R.id.heartRateView)
+        distanceView = findViewById(R.id.distanceView)
+        calorieView = findViewById(R.id.calorieView)
+
 
 
         val bluetoothManager = getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
@@ -140,19 +146,19 @@ class MainActivity : AppCompatActivity() {
             }, 500)
 
             handler.postDelayed({
-            val heartService = gatt.getService(HEART_SERVICE_UUID)
-            val heartChar = heartService?.getCharacteristic(HEART_CHAR_UUID)
+                val heartService = gatt.getService(HEART_SERVICE_UUID)
+                val heartChar = heartService?.getCharacteristic(HEART_CHAR_UUID)
 
-            if (heartChar != null) {
-                gatt.setCharacteristicNotification(heartChar, true)
-                val hrDescriptor = heartChar.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
-                hrDescriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                gatt.writeDescriptor(hrDescriptor)
-                Log.d("BLE", "Heart rate notification enabled")
-            } else {
-                Log.e("BLE", "Heart rate characteristic not found")
-            }
-                                }, 500)
+                if (heartChar != null) {
+                    gatt.setCharacteristicNotification(heartChar, true)
+                    val hrDescriptor = heartChar.getDescriptor(UUID.fromString("00002902-0000-1000-8000-00805f9b34fb"))
+                    hrDescriptor?.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                    gatt.writeDescriptor(hrDescriptor)
+                    Log.d("BLE", "Heart rate notification enabled")
+                } else {
+                    Log.e("BLE", "Heart rate characteristic not found")
+                }
+            }, 500)
 
         }
 
@@ -160,12 +166,26 @@ class MainActivity : AppCompatActivity() {
             when (characteristic.uuid) {
                 STEP_CHAR_UUID -> {
                     val data = characteristic.value
-                    val steps = if (data.size >= 2) {
-                        (data[1].toInt() and 0xFF shl 8) or (data[0].toInt() and 0xFF)
-                    } else 0
+                    if (data.size >= 9) {
+                        val steps = (data[1].toInt() and 0xFF shl 8) or (data[0].toInt() and 0xFF)
+                        val distance =
+                            (data[4].toInt() and 0xFF shl 8) or (data[3].toInt() and 0xFF)
+                        val calories = data[6].toInt() and 0xFF
 
-                    runOnUiThread {
-                        stepsView.text = "Steps: $steps"
+                        runOnUiThread {
+                            stepsView.text = "Steps: $steps"
+                            distanceView.text = "Distance: $distance m"
+                            calorieView.text = "Calories: $calories kcal"
+                        }
+                    } else {
+                        // Fallback for old 2-byte format
+                        val steps = if (data.size >= 2) {
+                            (data[1].toInt() and 0xFF shl 8) or (data[0].toInt() and 0xFF)
+                        } else 0
+
+                        runOnUiThread {
+                            stepsView.text = "Steps: $steps"
+                        }
                     }
                 }
 
@@ -184,5 +204,5 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    }
+        }
 }
