@@ -24,5 +24,21 @@
         android:text="Heart Rate: --"
         android:textSize="24sp"
         android:paddingTop="16dp" />
+    <TextView
+        android:id="@+id/distanceView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Distance: --"
+        android:textSize="20sp"
+        android:paddingTop="8dp" />
+
+    <TextView
+        android:id="@+id/calorieView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Calories: --"
+        android:textSize="20sp"
+        android:paddingTop="8dp" />
+
 
 </LinearLayout>
